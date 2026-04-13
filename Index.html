@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Queue Monitor</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface-2: #232733;
+  --border: #2e3340;
+  --text: #e4e6ed;
+  --text-muted: #8b8fa3;
+  --accent: #4d8cff;
+  --accent-dim: rgba(77,140,255,0.12);
+  --green: #34d399;
+  --green-dim: rgba(52,211,153,0.12);
+  --amber: #fbbf24;
+  --amber-dim: rgba(251,191,36,0.12);
+  --red: #f87171;
+  --red-dim: rgba(248,113,113,0.12);
+  --cyan: #22d3ee;
+  --cyan-dim: rgba(34,211,238,0.12);
+  --purple: #a78bfa;
+  --purple-dim: rgba(167,139,250,0.12);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding: 16px;
+  min-height: 100vh;
+}
+
+.queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.queue-name {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.queue-id {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.live-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--green);
+  background: var(--green-dim);
+  padding: 4px 10px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.live-dot {
+  width: 6px; height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  transition: border-color 0.3s;
+}
+
+.stat-card:hover { border-color: var(--accent); }
+
+.stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-family: 'DM Mono', monospace;
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.stat-value.green { color: var(--green); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.red { color: var(--red); }
+.stat-value.accent { color: var(--accent); }
+.stat-value.cyan { color: var(--cyan); }
+.stat-value.purple { color: var(--purple); }
+
+.stat-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.calls-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.calls-table th {
+  background: var(--surface-2);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.calls-table td {
+  font-size: 13px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.calls-table tr:last-child td { border-bottom: none; }
+
+.calls-table tr { transition: background 0.2s; }
+.calls-table tbody tr:hover { background: rgba(77,140,255,0.04); }
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+
+.status-pill.new {
+  color: var(--amber);
+  background: var(--amber-dim);
+}
+
+.status-pill.in-progress {
+  color: var(--green);
+  background: var(--green-dim);
+}
+
+.status-pill.replied {
+  color: var(--cyan);
+  background: var(--cyan-dim);
+}
+
+.status-pill.escalated {
+  color: var(--red);
+  background: var(--red-dim);
+}
+
+.status-pill.waiting {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.status-pill.picked {
+  color: var(--purple);
+  background: var(--purple-dim);
+}
+
+.status-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-pill.new .status-dot { animation: pulse 1.2s ease-in-out infinite; }
+
+.sender {
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subject {
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duration {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+}
+
+.agent-name {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.pick-btn {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid rgba(77,140,255,0.25);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s;
+}
+
+.pick-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.footer-bar {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.refresh-info {
+  font-family: 'DM Mono', monospace;
+}
+</style>
+</head>
+<body>
+
+<div class="queue-header">
+  <div>
+    <div class="queue-name" id="queueName">Email Queue</div>
+    <div class="queue-id" id="queueId"></div>
+  </div>
+  <div class="live-badge">
+    <span class="live-dot"></span>
+    Live
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">In queue</div>
+    <div class="stat-value accent" id="inQueue">0</div>
+    <div class="stat-sub">awaiting pickup</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">In progress</div>
+    <div class="stat-value green" id="inProgress">0</div>
+    <div class="stat-sub">being handled</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Avg response</div>
+    <div class="stat-value amber" id="avgResponse">0m</div>
+    <div class="stat-sub">first reply</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Available</div>
+    <div class="stat-value cyan" id="available">0</div>
+    <div class="stat-sub">agents</div>
+  </div>
+</div>
+
+<div class="section-title">Email interactions</div>
+<table class="calls-table">
+  <thead>
+    <tr>
+      <th>Status</th>
+      <th>From</th>
+      <th>Subject</th>
+      <th>Agent</th>
+      <th>Wait time</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody id="emailsBody">
+  </tbody>
+</table>
+
+<div class="footer-bar">
+  <span>Last updated: <span id="lastUpdate">--</span></span>
+  <span class="refresh-info">Refresh: 5s</span>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const queueName = params.get('name') || 'Email Queue';
+const queueId = params.get('id') || 'email-queue-001';
+
+document.getElementById('queueName').textContent = queueName;
+document.getElementById('queueId').textContent = queueId;
+
+const agents = [
+  'Maria Santos', 'James Wright', 'Priya Patel', 'David Kim',
+  'Sarah Johnson', 'Carlos Rivera', 'Aisha Mohammed', 'Tyler Chen',
+  'Rachel Green', 'Marcus Thompson', 'Nina Kowalski', 'Derek Hayes'
+];
+
+const senders = [
+  { name: 'John Miller', email: 'john.miller@acme.com' },
+  { name: 'Anna Lee', email: 'anna.lee@globex.net' },
+  { name: 'Robert Chen', email: 'r.chen@initech.com' },
+  { name: 'Lisa Park', email: 'lisa.park@contoso.com' },
+  { name: 'Tom Brady', email: 'tbrad@wayneent.com' },
+  { name: 'Sandra Kim', email: 'skim@umbrella.co' },
+  { name: 'Mike Ross', email: 'mross@pearsonhardman.com' },
+  { name: 'Amy Zhang', email: 'azhang@stark.ind' },
+  { name: 'Peter Walsh', email: 'pwalsh@oscorp.net' },
+  { name: 'Diana Cruz', email: 'dcruz@lexcorp.com' },
+  { name: 'Kevin Hart', email: 'khart@dailyplanet.com' },
+  { name: 'Susan Bell', email: 'sbell@choam.org' }
+];
+
+const subjects = [
+  'Account access issue - urgent',
+  'Billing discrepancy on invoice #4821',
+  'RE: Service upgrade request',
+  'Password reset not working',
+  'Cancellation request - order #91023',
+  'Question about renewal terms',
+  'Fwd: Contract amendment needed',
+  'Technical support - API integration',
+  'Refund request for duplicate charge',
+  'Unable to login after update',
+  'Shipping delay inquiry',
+  'RE: Feature request follow-up',
+  'Compliance documentation needed',
+  'Data export request - GDPR',
+  'Escalation: unresolved ticket #7744'
+];
+
+const statuses = ['new', 'new', 'waiting', 'in-progress', 'in-progress', 'picked', 'replied', 'escalated'];
+const statusLabels = {
+  'new': 'New',
+  'waiting': 'Waiting',
+  'in-progress': 'In progress',
+  'picked': 'Picked',
+  'replied': 'Replied',
+  'escalated': 'Escalated'
+};
+
+const priorities = ['P1', 'P2', 'P2', 'P3', 'P3', 'P3', 'P4'];
+
+function seededRandom(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  }
+  return function() {
+    h = (h * 16807 + 0) % 2147483647;
+    return (h & 0x7fffffff) / 0x7fffffff;
+  };
+}
+
+function formatWait(minutes) {
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}h ${m}m`;
+}
+
+function generateState() {
+  const now = Date.now();
+  const cycle = Math.floor(now / 8000);
+  const rng = seededRandom('email-' + cycle);
+
+  const numEmails = Math.floor(rng() * 5) + 4;
+  const emails = [];
+  const usedAgents = new Set();
+  const usedSenders = new Set();
+  const usedSubjects = new Set();
+
+  for (let i = 0; i < numEmails; i++) {
+    const status = statuses[Math.floor(rng() * statuses.length)];
+
+    let sender;
+    do { sender = senders[Math.floor(rng() * senders.length)]; } while (usedSenders.has(sender.email) && usedSenders.size < senders.length);
+    usedSenders.add(sender.email);
+
+    let subject;
+    do { subject = subjects[Math.floor(rng() * subjects.length)]; } while (usedSubjects.has(subject) && usedSubjects.size < subjects.length);
+    usedSubjects.add(subject);
+
+    let agent = '--';
+    if (status === 'in-progress' || status === 'picked' || status === 'replied') {
+      let a;
+      do { a = agents[Math.floor(rng() * agents.length)]; } while (usedAgents.has(a) && usedAgents.size < agents.length);
+      usedAgents.add(a);
+      agent = a;
+    } else if (status === 'escalated') {
+      let a;
+      do { a = agents[Math.floor(rng() * agents.length)]; } while (usedAgents.has(a) && usedAgents.size < agents.length);
+      usedAgents.add(a);
+      agent = a;
+    }
+
+    const waitMin = status === 'new' ? Math.floor(rng() * 25) + 1
+                  : status === 'waiting' ? Math.floor(rng() * 45) + 10
+                  : status === 'in-progress' ? Math.floor(rng() * 30) + 5
+                  : status === 'picked' ? Math.floor(rng() * 10) + 1
+                  : status === 'replied' ? Math.floor(rng() * 60) + 15
+                  : Math.floor(rng() * 90) + 30;
+
+    emails.push({
+      status,
+      sender,
+      subject,
+      agent,
+      waitMin,
+      priority: priorities[Math.floor(rng() * priorities.length)]
+    });
+  }
+
+  emails.sort((a, b) => {
+    const order = { 'new': 0, 'waiting': 1, 'picked': 2, 'in-progress': 3, 'replied': 4, 'escalated': 5 };
+    return order[a.status] - order[b.status];
+  });
+
+  const inQueue = emails.filter(e => e.status === 'new' || e.status === 'waiting').length;
+  const inProgress = emails.filter(e => e.status === 'in-progress' || e.status === 'picked').length;
+  const waitTimes = emails.filter(e => e.status === 'new' || e.status === 'waiting').map(e => e.waitMin);
+  const avgResponse = waitTimes.length > 0
+    ? Math.floor(waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length)
+    : 0;
+  const totalAvailable = Math.floor(rng() * 3) + 2;
+
+  return { emails, inQueue, inProgress, avgResponse, available: totalAvailable };
+}
+
+function render() {
+  const state = generateState();
+
+  document.getElementById('inQueue').textContent = state.inQueue;
+  document.getElementById('inProgress').textContent = state.inProgress;
+  document.getElementById('avgResponse').textContent = formatWait(state.avgResponse);
+  document.getElementById('available').textContent = state.available;
+
+  const avgEl = document.getElementById('avgResponse');
+  avgEl.className = 'stat-value ' + (state.avgResponse > 30 ? 'red' : state.avgResponse > 15 ? 'amber' : 'green');
+
+  const tbody = document.getElementById('emailsBody');
+  tbody.innerHTML = '';
+
+  state.emails.forEach(email => {
+    const tr = document.createElement('tr');
+    const canPick = email.status === 'new' || email.status === 'waiting';
+    tr.innerHTML = `
+      <td><span class="status-pill ${email.status}"><span class="status-dot"></span>${statusLabels[email.status]}</span></td>
+      <td class="sender" title="${email.sender.email}">${email.sender.email}</td>
+      <td class="subject" title="${email.subject}">${email.subject}</td>
+      <td class="agent-name">${email.agent}</td>
+      <td class="duration">${formatWait(email.waitMin)}</td>
+      <td>${canPick ? '<button class="pick-btn" onclick="this.textContent=\'Picked\';this.disabled=true;this.style.opacity=0.5">Pick</button>' : '<span style="color:var(--text-muted);font-size:11px">--</span>'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const now = new Date();
+  document.getElementById('lastUpdate').textContent =
+    now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+render();
+setInterval(render, 1000);
+</script>
+</body>
+</html>
